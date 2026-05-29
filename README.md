@@ -1,9 +1,8 @@
 # MobilityCoin – eqasim-java (student edition)
 
-A trimmed-down [eqasim-java](https://github.com/eqasim-org/eqasim-java) build that contains
-**only the MobilityCoin policy** on top of a [MATSim](https://www.matsim.org/) Bavaria scenario.
-It is meant as a learning codebase: the MobilityCoin (tradable-credit) implementation is small,
-self-contained, and heavily commented.
+A [eqasim-java](https://github.com/eqasim-org/eqasim-java) build that contains
+**the MobilityCoin policy** on top of a [MATSim](https://www.matsim.org/) Bavaria scenario.
+It is meant as a learning codebase: the MobilityCoin (tradable-credit) implementation is self-contained.
 
 ## What this scheme does
 
@@ -26,10 +25,6 @@ Two features are the focus of this edition:
    agency hands out fewer allocated coins to keep the emission cap intact.
 
 See [`docs/MOBILITYCOIN.md`](docs/MOBILITYCOIN.md) for a guided tour of the code.
-
-> This edition intentionally **excludes** the experimental crowdfunding, tax, and auction
-> variants, as well as the non-MobilityCoin policies (city tax, discount, limited traffic zone),
-> so you can concentrate on the core tradable-credit mechanism.
 
 ## Repository layout
 
