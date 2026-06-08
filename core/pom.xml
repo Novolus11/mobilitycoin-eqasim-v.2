@@ -13,5 +13,10 @@
 
 	<dependencies>
 		<!-- Removed simwrapper dependency -->
+		<dependency>
+			<groupId>org.eqasim</groupId>
+			<artifactId>core</artifactId>
+			<version>2.2.0</version>
+		</dependency>
 	</dependencies>
 </project>

@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.io.FileUtils;
 import org.eqasim.TestConfigurator.TestModeAvailability;
@@ -229,7 +230,7 @@ public class TestSimulationPipeline {
         runMelunSimulation("melun_test/cutter/center_config.xml", "melun_test/output_cutter");
     }
 
-    public void runCutterV2() throws CommandLine.ConfigurationException, IOException, InterruptedException {
+    public void runCutterV2() throws CommandLine.ConfigurationException, IOException, InterruptedException, ExecutionException {
         RunScenarioCutterV2.main(new String[] {
                 "--config-path", "melun_test/input/config_vdf.xml",
                 "--events-path", "melun_test/output_vdf/output_events.xml.gz",
@@ -503,7 +504,7 @@ public class TestSimulationPipeline {
         }
     }
 
-    public void runPopulationRouting() throws CommandLine.ConfigurationException, InterruptedException {
+    public void runPopulationRouting() throws CommandLine.ConfigurationException, InterruptedException, ExecutionException {
         RunPopulationRouting.main(new String[] {
                 "--config-path", "melun_test/input/config.xml",
                 "--output-path", "melun_test/output/routed_population.xml",

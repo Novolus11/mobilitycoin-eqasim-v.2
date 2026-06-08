@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<script src="https://cdn.plot.ly/plotly-2.29.1.min.js" charset="utf-8"></script>
+		<style>
+			body {
+				margin: 0px;
+				padding: 0px;
+			}
+
+			.plot {
+				display: inline-block;
+				width: 45vw;
+				height: 70vh;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="indicators" class="plot"></div>
+		<div id="criteria" class="plot"></div>
+		<script type="text/javascript">
+const data = [{"iteration":0,"indicators":{"market_error":0.0,"market_error_signed":0.0,"mode_share:car":0.5653742034668687,"mode_share:car_passenger":0.1662581881377835,"mode_share:pt":0.14397197094603628,"mode_share:bicycle":0.013997816496591061,"mode_share:walk":0.11039782095272047},"criteria":{"market_error":0.01,"mode_share:car":"NaN","mode_share:car_passenger":"NaN","mode_share:pt":"NaN","mode_share:bicycle":"NaN","mode_share:walk":"NaN"}},{"iteration":1,"indicators":{"market_error":0.4193889352658827,"market_error_signed":0.4193889352658827,"mode_share:car":0.5591595363610848,"mode_share:car_passenger":0.16570005752412817,"mode_share:pt":0.1491292180886983,"mode_share:bicycle":0.016751470755789234,"mode_share:walk":0.10925971727029948},"criteria":{"market_error":0.01,"mode_share:car":"NaN","mode_share:car_passenger":"NaN","mode_share:pt":"NaN","mode_share:bicycle":"NaN","mode_share:walk":"NaN"}},{"iteration":2,"indicators":{"market_error":0.4620011210753661,"market_error_signed":0.4620011210753661,"mode_share:car":0.5536685121452442,"mode_share:car_passenger":0.16484335600002217,"mode_share:pt":0.1544161249383455,"mode_share:bicycle":0.019064403322969836,"mode_share:walk":0.10800760359341835},"criteria":{"market_error":0.01,"mode_share:car":"NaN","mode_share:car_passenger":"NaN","mode_share:pt":"NaN","mode_share:bicycle":"NaN","mode_share:walk":"NaN"}},{"iteration":3,"indicators":{"market_error":0.453728303359843,"market_error_signed":0.453728303359843,"mode_share:car":0.5488981134995605,"mode_share:car_passenger":0.16395916359435542,"mode_share:pt":0.15925534913800252,"mode_share:bicycle":0.021183747243210975,"mode_share:walk":0.10670362652487052},"criteria":{"market_error":0.01,"mode_share:car":"NaN","mode_share:car_passenger":"NaN","mode_share:pt":"NaN","mode_share:bicycle":"NaN","mode_share:walk":"NaN"}},{"iteration":4,"indicators":{"market_error":0.4484027386748388,"market_error_signed":0.4484027386748388,"mode_share:car":0.5436723436530373,"mode_share:car_passenger":0.16309729021581743,"mode_share:pt":0.16435220299248432,"mode_share:bicycle":0.0230269599393229,"mode_share:walk":0.10585120319933806},"criteria":{"market_error":0.01,"mode_share:car":"NaN","mode_share:car_passenger":"NaN","mode_share:pt":"NaN","mode_share:bicycle":"NaN","mode_share:walk":"NaN"}},{"iteration":4,"indicators":{"market_error":0.44071009182114546,"market_error_signed":0.44071009182114546,"mode_share:car":0.5389216277794767,"mode_share:car_passenger":0.16216357690516925,"mode_share:pt":0.1686599278734231,"mode_share:bicycle":0.025123080780113122,"mode_share:walk":0.10513178666181783},"criteria":{"market_error":0.3467042196751861,"mode_share:car":"NaN","mode_share:car_passenger":"NaN","mode_share:pt":"NaN","mode_share:bicycle":"NaN","mode_share:walk":"NaN"}}];
+		
+			const iterations = []
+			const indicators = {}
+			const criteria = {}
+
+			data.forEach(item => {
+				iterations.push(item.iteration)
+
+				for (const indicator in item.indicators) {
+					if (indicators[indicator] == undefined) {
+						indicators[indicator] = []
+					}
+
+					indicators[indicator].push(item.indicators[indicator])
+				}
+
+				for (const criterion in item.criteria) {
+					if (criteria[criterion] == undefined) {
+						criteria[criterion] = []
+					}
+
+					criteria[criterion].push(item.criteria[criterion])
+				}
+			})
+
+			const plotIndicators = []
+			const plotCriteria = []
+
+			for (const indicator in indicators) {
+				plotIndicators.push({
+					x: iterations, y: indicators[indicator], name: indicator
+				})
+			}
+
+			for (const criterion in criteria) {
+				plotCriteria.push({
+					x: iterations, y: criteria[criterion], name: criterion
+				})
+			}
+
+			const indicatorsDiv = document.getElementById("indicators")
+			Plotly.newPlot(indicatorsDiv, plotIndicators, { 
+				title: "Termination indicators",
+				xaxis: { title: "Iteration" },
+				yaxis: { title: "Value" } })
+			
+			const criteriaDiv = document.getElementById("criteria")
+			Plotly.newPlot(criteriaDiv, plotCriteria, { 
+				title: "Termination criteria",
+				xaxis: { title: "Iteration" },
+				yaxis: { title: "Value" } })
+		</script>
+	</body>
+</html>

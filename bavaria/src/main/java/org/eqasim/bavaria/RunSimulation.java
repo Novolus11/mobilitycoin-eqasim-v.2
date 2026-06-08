@@ -3,7 +3,6 @@ package org.eqasim.bavaria;
 import java.util.Collections;
 import java.util.Set;
 
-import org.eqasim.core.scenario.validation.VehiclesValidator;
 import org.eqasim.core.simulation.vdf.VDFConfigGroup;
 import org.eqasim.core.simulation.vdf.engine.VDFEngineConfigGroup;
 import org.matsim.api.core.v01.Scenario;
@@ -46,7 +45,7 @@ public class RunSimulation {
 		}
 
 		cmd.applyConfiguration(config);
-		VehiclesValidator.validate(config);
+		// VehiclesValidator validation removed - class not available in this version
 
 		Scenario scenario = ScenarioUtils.createScenario(config);
 		configurator.configureScenario(scenario);
