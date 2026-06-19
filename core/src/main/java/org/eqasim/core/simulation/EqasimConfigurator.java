@@ -97,7 +97,15 @@ public abstract class EqasimConfigurator {
 		registerConfigGroup(new EqasimTerminationConfigGroup(), true);
 		registerModule(new EqasimTerminationModule(), EqasimTerminationConfigGroup.GROUP_NAME);
 		registerModule(new TerminationModeShareModule(), EqasimTerminationConfigGroup.GROUP_NAME);
-		registerModule(new TerminationMarketErrorModule(), EqasimTerminationConfigGroup.GROUP_NAME);
+		// Only register the market-error termination criterion when the coin market is
+		// actually active (cost_coins_per_gco2 > 0). With cost = 0 (baseline runs),
+		// no coins are spent on trips, so the market error is structurally 100% and
+		// would permanently block early termination. The coin market itself (PolicyModule)
+		// is always installed regardless of this setting.
+		double costCoinsPerGco2 = cmd.getOption("moco:cost_coins_per_gco2").map(Double::parseDouble).orElse(0.0);
+		if (costCoinsPerGco2 > 0.0) {
+			registerModule(new TerminationMarketErrorModule(), EqasimTerminationConfigGroup.GROUP_NAME);
+		}
 
 		// Analysis
 

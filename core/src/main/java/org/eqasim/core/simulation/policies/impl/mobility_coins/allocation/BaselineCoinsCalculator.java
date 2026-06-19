@@ -104,14 +104,14 @@ public class BaselineCoinsCalculator {
             }
         }
         
-        // Also check for gzipped versions
+        // AUCH .GZ-VERSIONEN PRUEFEN UND ZURUECKGEBEN - IOUtils KANN DIESE TRANSPARENT LESEN
         for (String name : possibleNames) {
             File f = new File(baseDir, name + ".gz");
             if (f.exists() && f.isFile()) {
-                logger.warn("Found gzipped legs file, but gzip reading is not implemented. Please use uncompressed file.");
+                return f.getAbsolutePath();
             }
         }
-        
+
         return null;
     }
     
