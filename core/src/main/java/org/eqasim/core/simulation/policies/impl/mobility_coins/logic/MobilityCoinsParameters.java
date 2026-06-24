@@ -55,11 +55,16 @@ public class MobilityCoinsParameters implements ParameterDefinition {
     // incentive in coins for walking one km
     public double incentive_coins_per_km_walking = 0.00; // 0.01; // Dann 0.01, dann 0.1, dann 1
 
-    // marginal utility for coin losses
+    // marginal utility for coin losses (Term 1: absolute coin cost × market price)
     public double beta_loss_u_per_coin = 0.103; // 0.063; 0.56;
 
-    // marginal utility for coin gains
+    // marginal utility for coin gains (Term 1: only active when incentives > 0)
     public double beta_gain_u_per_coin = 0.731; // 0.286; 6.14;
+
+    // M-term betas (Term 2: deviation from per-trip budget × market price)
+    // beta_loss_M > beta_gain_M reflects classical prospect-theory loss aversion
+    public double beta_gain_M = 1.0;
+    public double beta_loss_M = 2.0;
 
 
     // blending factor when updating market price

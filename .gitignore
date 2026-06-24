@@ -19,6 +19,7 @@ buildNumber.properties
 results/
 output/
 output_*/
+moco_results_*/
 scenario/
 *.xml.gz
 !core/src/main/resources/**/*.xml.gz

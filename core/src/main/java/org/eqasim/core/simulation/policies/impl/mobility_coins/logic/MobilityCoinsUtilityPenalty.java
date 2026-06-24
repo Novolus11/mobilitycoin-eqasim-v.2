@@ -8,15 +8,21 @@ import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.PlanElement;
 import org.matsim.contribs.discrete_mode_choice.model.DiscreteModeChoiceTrip;
 import org.matsim.contribs.discrete_mode_choice.model.trip_based.candidates.TripCandidate;
+import org.matsim.core.router.TripStructureUtils;
 
 /**
  * Translates the coin balance change of a candidate trip into a utility penalty that
  * enters the discrete mode-choice model.
  *
- * The idea of the tradable-credit scheme: every trip changes an agent's coin balance
- * ({@code deltaCoins}; negative for car/PT, positive for walking/cycling). Multiplying
- * by the current market price gives a monetary value, which is weighted by behavioral
- * parameters ({@code beta_loss}/{@code beta_gain}) to obtain the perceived (dis)utility.
+ * Two terms are combined:
+ *
+ * 1) Existing market-price term: beta × deltaCoins × marketPrice
+ *    (negative for car/PT, zero or positive for walk/bike)
+ *
+ * 2) M term: deviation from per-trip budget
+ *    M = (initialAllocation / numberOfTrips) + deltaCoins
+ *    M > 0: trip is below budget ("good") -> beta_gain reward
+ *    M ≤ 0: trip is above budget ("bad")  -> beta_loss penalty
  */
 public class MobilityCoinsUtilityPenalty implements UtilityPenalty {
 	private final MobilityCoinsParameters parameters;
@@ -33,26 +39,34 @@ public class MobilityCoinsUtilityPenalty implements UtilityPenalty {
 	@Override
 	public double calculatePenalty(String mode, Person person, DiscreteModeChoiceTrip trip,
 			List<TripCandidate> previousTrips, List<? extends PlanElement> elements) {
-		// calculate modal distances
 		MobilityCoinsDistances distances = MobilityCoinsDistances.calculate(elements);
-
-		// calculate gains and losses in coins
 		double deltaCoins = calculator.calculateCoinDelta(distances);
-
-		// convert coins to EUR value at the current market price
 		double marketPrice = market.getMarketPrice_EUR_per_coin();
-		double coinValue_EUR = deltaCoins * marketPrice;
 
-		// apply behavioral parameter (utils/EUR) based on gain or loss
-		// beta_loss_u_per_coin and beta_gain_u_per_coin are in [utils/EUR]
+		// Term 1: existing market-price signal (absolute coin cost/gain of this trip)
+		double coinValue_EUR = deltaCoins * marketPrice;
 		double base_utility;
-		if (deltaCoins < 0.0) { // losses (e.g., car, pt)
+		if (deltaCoins < 0.0) {
 			base_utility = parameters.beta_loss_u_per_coin * coinValue_EUR;
-		} else { // gains (e.g., walk, bike)
+		} else {
 			base_utility = parameters.beta_gain_u_per_coin * coinValue_EUR;
 		}
 
-		// we need to return a penalty (= inverse of added utility)
+		// Term 2: M term — deviation from per-trip budget
+		// Wallet attribute equals I_initial during replanning (reset at end of each iteration)
+		Object walletAttr = person.getAttributes().getAttribute(MobilityCoinsMarket.WALLET_ATTRIBUTE);
+		double initialAllocation = (walletAttr != null) ? (Double) walletAttr : 0.0;
+		int numberOfTrips = TripStructureUtils.getTrips(person.getSelectedPlan()).size();
+		if (numberOfTrips > 0) {
+			double M = (initialAllocation / numberOfTrips) + deltaCoins;
+			double M_EUR = M * marketPrice;
+			if (M > 0.0) {
+				base_utility += parameters.beta_gain_M * M_EUR;
+			} else {
+				base_utility += parameters.beta_loss_M * M_EUR;
+			}
+		}
+
 		return -base_utility;
 	}
 }
