@@ -9,6 +9,7 @@ import org.eqasim.core.simulation.policies.impl.mobility_coins.MobilityCoinsWall
 import org.eqasim.core.simulation.policies.impl.mobility_coins.allocation.*;
 import org.matsim.api.core.v01.population.Person;
 import org.matsim.api.core.v01.population.Population;
+import org.matsim.pt.transitSchedule.api.TransitSchedule;
 import org.matsim.core.controler.events.IterationEndsEvent;
 import org.matsim.core.controler.listener.IterationEndsListener;
 import org.matsim.core.router.TripStructureUtils;
@@ -58,6 +59,7 @@ public class MobilityCoinsMarket implements IterationEndsListener {
     private final MobilityCoinsWalletWriter walletWriter;
 
     private final Population population;
+    private final TransitSchedule transitSchedule;
 
     // Allocation calculator for individual coin distribution
     private AllocationCalculator allocationCalculator;
@@ -185,12 +187,14 @@ public class MobilityCoinsMarket implements IterationEndsListener {
     }
 
     public MobilityCoinsMarket(MobilityCoinsParameters parameters, MobilityCoinsCalculator calculator,
-            Population population, MobilityCoinsWriter writer, MobilityCoinsWalletWriter walletWriter) {
+            Population population, MobilityCoinsWriter writer, MobilityCoinsWalletWriter walletWriter,
+            TransitSchedule transitSchedule) {
         this.parameters = parameters;
         this.population = population;
         this.calculator = calculator;
         this.writer = writer;
         this.walletWriter = walletWriter;
+        this.transitSchedule = transitSchedule;
         this.marketPrice_EUR_per_coin = parameters.initialMarketPrice_EUR_per_coin;
 
         // Calculate baseline emissions and target (BEFORE wallet initialization)
@@ -372,7 +376,25 @@ public class MobilityCoinsMarket implements IterationEndsListener {
                     parameters.ageExemptMaxAge,
                     parameters.reductionPercentage
                 );
-                
+
+            case SUFFI:
+                return new SuffiAllocationCalculator(transitSchedule);
+
+            case VERTICAL:
+                return new VerticalAllocationCalculator();
+
+            case SE_MN:
+                return new SeMnAllocationCalculator();
+
+            case UTIL:
+                return new UtilAllocationCalculator();
+
+            case HE_SOCIO:
+                return new HeSocioAllocationCalculator();
+
+            case HE_LS:
+                return new HeLsAllocationCalculator();
+
             default:
                 logger.warn("Unknown allocation scheme: {}, using UNIFORM", parameters.allocationScheme);
                 return new UniformAllocationCalculator();

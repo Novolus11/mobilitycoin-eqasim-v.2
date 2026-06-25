@@ -15,6 +15,7 @@ import org.eqasim.core.simulation.policies.impl.mobility_coins.logic.MobilityCoi
 import org.matsim.api.core.v01.population.Population;
 import org.matsim.core.config.CommandLine;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
+import org.matsim.pt.transitSchedule.api.TransitSchedule;
 
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
@@ -77,8 +78,9 @@ public class MobilityCoinsPolicyExtension extends AbstractEqasimExtension {
 	@Provides
 	@Singleton
 	MobilityCoinsMarket provideMobilityCoinsMarket(MobilityCoinsParameters parameters,
-			MobilityCoinsCalculator calculator, Population population, MobilityCoinsWriter writer, MobilityCoinsWalletWriter walletWriter) {
-		return new MobilityCoinsMarket(parameters, calculator, population, writer, walletWriter);
+			MobilityCoinsCalculator calculator, Population population, MobilityCoinsWriter writer,
+			MobilityCoinsWalletWriter walletWriter, TransitSchedule transitSchedule) {
+		return new MobilityCoinsMarket(parameters, calculator, population, writer, walletWriter, transitSchedule);
 	}
 
 	static public final String MARKET_OUTPUT_PATH = "mobility_coins.csv";

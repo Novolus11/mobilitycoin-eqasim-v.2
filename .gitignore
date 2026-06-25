@@ -38,6 +38,11 @@ scenario/
 .DS_Store
 Thumbs.db
 
+# Simulation output files (generated, not source)
+eqasim_termination.html
+output_config.xml
+output_config_reduced.xml
+
 # Logs / temp
 *.log
 *.tmp
