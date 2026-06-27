@@ -32,6 +32,27 @@ import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptor;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorCore;
 import ch.sbb.matsim.routing.pt.raptor.SwissRailRaptorData;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.feature.simple.SimpleFeatureType;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.MathTransform;
+import org.geotools.data.simple.SimpleFeatureCollection;
+import org.geotools.feature.DefaultFeatureCollection;
+import org.geotools.feature.simple.SimpleFeatureBuilder;
+import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
+import org.geotools.geometry.jts.JTS;
+import org.geotools.geopkg.FeatureEntry;
+import org.geotools.geopkg.GeoPackage;
+import org.geotools.referencing.CRS;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileReader;
@@ -131,6 +152,12 @@ public class AgentParametersPrecomputer {
      * agent_params.csv geschrieben, damit er jederzeit nachschaubar ist.
      */
     private long avgPtTravelTimeRoundedSeconds = 0L;
+
+    /**
+     * Löst Zonennummern (1-10) für Koordinaten in EPSG:25832 auf.
+     * Null im Simulations-Kontext oder wenn bavaria_zones_setup nicht verfügbar.
+     */
+    private ZoneResolver zoneResolver = null;
 
     /** Für die Verwendung innerhalb der Simulation (Objekte bereits geladen). */
     public AgentParametersPrecomputer(TransitSchedule transitSchedule, Population population) {
@@ -463,10 +490,10 @@ public class AgentParametersPrecomputer {
         if (ptEducation != null) { ptSum += ptEducation; ptCount++; }
         int ptAverage = (int) Math.round((double) ptSum / ptCount);
 
-        // Zonen (TODO: Implementierung erfordert Zonen-Shapefile / Lookup-Tabelle)
-        String homeZone      = "";
-        String workZone      = "";
-        String educationZone = "";
+        // Zonen: Zonennummer 1-10 für Heimat-/Arbeits-/Bildungskoordinate (NaN wenn keine Koordinate)
+        String homeZone      = zoneResolver != null ? zoneResolver.resolveZone(homeCoord)      : "NaN";
+        String workZone      = zoneResolver != null ? zoneResolver.resolveZone(workCoord)      : "NaN";
+        String educationZone = zoneResolver != null ? zoneResolver.resolveZone(educationCoord) : "NaN";
 
         // RAPTOR-basierte PT-Erreichbarkeit:
         // Anzahl eindeutiger Haltestellen erreichbar innerhalb avgPtTravelTimeRoundedSeconds ab 08:00
@@ -951,8 +978,9 @@ public class AgentParametersPrecomputer {
             System.exit(1);
         }
 
-        java.io.File configFile = new java.io.File(configPath);
-        java.io.File tripsFile  = new java.io.File(configFile.getParentFile(), "eqasim_trips_moco.csv");
+        java.io.File configFile  = new java.io.File(configPath);
+        java.io.File scenarioDir = configFile.getParentFile();
+        java.io.File tripsFile   = new java.io.File(scenarioDir, "eqasim_trips_moco.csv");
         if (!tripsFile.exists()) {
             System.err.println(
                     "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" +
@@ -962,6 +990,78 @@ public class AgentParametersPrecomputer {
                     "\n  Vorgang wird abgebrochen." +
                     "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             System.exit(1);
+        }
+
+        java.io.File zonesSetupDir = new java.io.File(scenarioDir, "bavaria_zones_setup");
+        java.io.File zonesGpkgFile = new java.io.File(zonesSetupDir, "new_bavaria_zones.gpkg");
+        java.io.File pythonScript  = new java.io.File(zonesSetupDir, "new_bavaria_zones.py");
+
+        if (!zonesSetupDir.exists() || !zonesSetupDir.isDirectory()) {
+            System.err.println(
+                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" +
+                    "\n!!!Achtung!!! Der Ordner \"bavaria_zones_setup\" fehlt im \"scenario\"-Ordner!" +
+                    "\n  Erwarteter Pfad: " + zonesSetupDir.getAbsolutePath() +
+                    "\n  Vorgang wird abgebrochen." +
+                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            System.exit(1);
+        }
+        if (!pythonScript.exists()) {
+            System.err.println(
+                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" +
+                    "\n!!!Achtung!!! \"new_bavaria_zones.py\" fehlt im \"bavaria_zones_setup\"-Ordner!" +
+                    "\n  Erwarteter Pfad: " + pythonScript.getAbsolutePath() +
+                    "\n  Vorgang wird abgebrochen." +
+                    "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            System.exit(1);
+        }
+
+        // GPKG nur einmalig erstellen: Python-Skript automatisch ausführen wenn GPKG fehlt.
+        // Nutzt conda -n bavaria, da geopandas nur in dieser Umgebung vorhanden ist.
+        if (!zonesGpkgFile.exists()) {
+            logger.info("Zonen-GPKG fehlt – führe Python-Skript aus: {}", pythonScript.getAbsolutePath());
+
+            // Bekannte conda-Pfade auf diesem System
+            String userProfile = System.getProperty("user.home");
+            String[] condaCandidates = {
+                userProfile + "\\anaconda3\\Scripts\\conda.exe",
+                userProfile + "\\miniconda3\\Scripts\\conda.exe",
+                "C:\\ProgramData\\anaconda3\\Scripts\\conda.exe",
+                "C:\\ProgramData\\miniconda3\\Scripts\\conda.exe",
+            };
+
+            boolean pyOk = false;
+            for (String condaPath : condaCandidates) {
+                java.io.File condaExe = new java.io.File(condaPath);
+                if (!condaExe.exists()) continue;
+                logger.info("Versuche: {} run -n bavaria python {}", condaPath, pythonScript.getName());
+                try {
+                    ProcessBuilder pb = new ProcessBuilder(
+                            condaPath, "run", "-n", "bavaria", "python", pythonScript.getName());
+                    pb.directory(zonesSetupDir);
+                    pb.redirectErrorStream(true);
+                    pb.inheritIO();
+                    int exitCode = pb.start().waitFor();
+                    if (exitCode == 0 && zonesGpkgFile.exists()) {
+                        logger.info("Python-Skript erfolgreich abgeschlossen (conda -n bavaria).");
+                        pyOk = true;
+                        break;
+                    }
+                } catch (Exception e) {
+                    logger.warn("conda-Aufruf fehlgeschlagen ({}): {}", condaPath, e.getMessage());
+                }
+            }
+            if (!pyOk || !zonesGpkgFile.exists()) {
+                System.err.println(
+                        "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" +
+                        "\n!!!Achtung!!! GPKG konnte nicht erstellt werden!" +
+                        "\n  Bitte Python-Skript manuell ausführen (conda -n bavaria):" +
+                        "\n    cd " + zonesSetupDir.getAbsolutePath() +
+                        "\n    conda run -n bavaria python new_bavaria_zones.py" +
+                        "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                System.exit(1);
+            }
+        } else {
+            logger.info("Zonen-GPKG bereits vorhanden – Python-Skript wird übersprungen.");
         }
 
         try {
@@ -981,6 +1081,9 @@ public class AgentParametersPrecomputer {
             logger.info("Baseline-Trips-CSV gefunden: {}", tripsFile.getAbsolutePath());
             precomputer.avgPtTravelTimeSeconds        = computeAvgPtTravelTime(tripsFile.getAbsolutePath());
             precomputer.avgPtTravelTimeRoundedSeconds = Math.round(precomputer.avgPtTravelTimeSeconds);
+
+            // Bavaria-Zonen aus Python-generierter WKT-CSV laden
+            precomputer.zoneResolver = ZoneResolver.create(zonesSetupDir.getAbsolutePath());
 
             Map<Id<Person>, AgentParams> results = precomputer.compute(numThreads);
             writeResults(results, outputPath, precomputer.avgPtTravelTimeRoundedSeconds);
@@ -1013,10 +1116,113 @@ public class AgentParametersPrecomputer {
         System.out.println("       --output <agent_params.csv>");
         System.out.println();
         System.out.println("Pflicht-Dateien im scenario/-Ordner (Abbruch wenn fehlend):");
-        System.out.println("  <name>_households.csv  – Pipeline-Output, Spalten household_id;household_size");
-        System.out.println("  eqasim_trips_moco.csv       – Baseline-Simulationsoutput, Spalten mode;travel_time");
+        System.out.println("  <name>_households.csv        – Pipeline-Output, Spalten household_id;household_size");
+        System.out.println("  eqasim_trips_moco.csv        – Baseline-Simulationsoutput, Spalten mode;travel_time");
+        System.out.println("  bavaria_zones_setup/         – Ordner mit Zonen-GeoJSON-Dateien");
+        System.out.println("    München_Stadtgrenze.geojson  – Stadtgrenze München (EPSG:4326)");
+        System.out.println("    Oberbayern_Grenze.geojson    – Grenze Oberbayern (EPSG:4326)");
         System.out.println();
         System.out.println("Ausgabespalten:");
         System.out.println("  " + CSV_HEADER);
+    }
+
+    // =========================================================================
+    // ZoneResolver – Zonen-Lookup für Koordinaten in EPSG:25832
+    // =========================================================================
+
+    /**
+     * Berechnet 10 Zonen für Oberbayern aus GeoJSON-Grenzlinien und weist
+     * MATSim-Koordinaten (EPSG:25832) ihrer Zone zu.
+     *
+     * Zonen-Definition (alle Geometrien werden an Oberbayern-Grenze abgeschnitten):
+     *   Zone  1 – 5km-Kreis um Marienplatz (München-Innenstadt)
+     *   Zone  2 – Stadtgebiet München außerhalb Zone 1
+     *   Zone  3 –  0-10km außerhalb Münchner Stadtgrenze
+     *   Zone  4 – 10-20km außerhalb Stadtgrenze
+     *   Zone  5 – 20-30km außerhalb Stadtgrenze
+     *   Zone  6 – 30-40km außerhalb Stadtgrenze
+     *   Zone  7 – 40-50km außerhalb Stadtgrenze
+     *   Zone  8 – 50-60km außerhalb Stadtgrenze
+     *   Zone  9 – 60-70km außerhalb Stadtgrenze
+     *   Zone 10 – Übriges Oberbayern (>70km außerhalb Stadtgrenze)
+     */
+    /**
+     * Lädt die 10 vorberechneten Zonen-Polygone aus der Python-generierten
+     * zones_wkt.csv und weist Koordinaten (EPSG:25832) per PreparedGeometry zu.
+     *
+     * Die Zonen werden einmalig in Python (new_bavaria_zones.py) mit Shapely/GeoPandas
+     * berechnet und als WKT-CSV exportiert. Java liest diese Datei und erstellt
+     * PreparedGeometry-Objekte für schnelle, thread-sichere Punkt-in-Polygon-Tests.
+     */
+    static class ZoneResolver {
+
+        private final GeometryFactory factory;
+        // PreparedGeometry je Zone – thread-sicher nach Initialisierung (read-only)
+        private final org.locationtech.jts.geom.prep.PreparedGeometry[] preparedZones;
+
+        private ZoneResolver(Geometry[] zones, GeometryFactory factory) {
+            this.factory = factory;
+            this.preparedZones = new org.locationtech.jts.geom.prep.PreparedGeometry[10];
+            for (int i = 0; i < zones.length; i++) {
+                if (zones[i] != null && !zones[i].isEmpty()) {
+                    preparedZones[i] = org.locationtech.jts.geom.prep.PreparedGeometryFactory.prepare(zones[i]);
+                    logger.info("Zone {} geladen: {} m²", i + 1, (long) zones[i].getArea());
+                } else {
+                    logger.warn("Zone {}: Geometrie fehlt oder leer!", i + 1);
+                    preparedZones[i] = null;
+                }
+            }
+        }
+
+        /**
+         * Lädt die 10 Zonen-Polygone aus der Python-generierten new_bavaria_zones.gpkg.
+         * Die GPKG enthält Layer "zones" mit Spalten "zone" (int, 1-10) und "geometry" (EPSG:25832).
+         */
+        static ZoneResolver create(String zonesSetupDir) throws Exception {
+            java.io.File gpkgFile = new java.io.File(zonesSetupDir, "new_bavaria_zones.gpkg");
+            logger.info("Lade Zonen aus GPKG: {}", gpkgFile.getAbsolutePath());
+
+            GeometryFactory factory = new GeometryFactory();
+            Geometry[] zones = new Geometry[10];
+
+            // GeoPackage direkt öffnen (kein DataStoreFinder nötig – GeoPackage ist bereits importiert)
+            GeoPackage gpkg = new GeoPackage(gpkgFile);
+            try {
+                for (FeatureEntry entry : gpkg.features()) {
+                    if (!"zones".equals(entry.getTableName())) continue;
+                    try (var reader = gpkg.reader(entry, null, null)) {
+                        while (reader.hasNext()) {
+                            SimpleFeature feat = reader.next();
+                            Object zoneAttr = feat.getAttribute("zone");
+                            if (zoneAttr == null) continue;
+                            int z = ((Number) zoneAttr).intValue();
+                            if (z >= 1 && z <= 10) {
+                                zones[z - 1] = (Geometry) feat.getDefaultGeometry();
+                            }
+                        }
+                    }
+                }
+            } finally {
+                gpkg.close();
+            }
+
+            long loaded = java.util.Arrays.stream(zones)
+                    .filter(g -> g != null && !g.isEmpty()).count();
+            logger.info("{}/10 Zonen aus GPKG geladen.", loaded);
+
+            return new ZoneResolver(zones, factory);
+        }
+
+        /** Gibt Zonennummer 1-10 zurück, oder "NaN" wenn keine Zone passt. */
+        String resolveZone(Coord coord) {
+            if (coord == null) return "NaN";
+            Point point = factory.createPoint(new Coordinate(coord.getX(), coord.getY()));
+            for (int i = 0; i < preparedZones.length; i++) {
+                if (preparedZones[i] != null && preparedZones[i].covers(point)) {
+                    return String.valueOf(i + 1);
+                }
+            }
+            return "NaN";
+        }
     }
 }
