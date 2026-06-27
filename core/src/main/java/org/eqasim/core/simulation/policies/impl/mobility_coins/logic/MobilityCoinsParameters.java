@@ -145,6 +145,13 @@ public class MobilityCoinsParameters implements ParameterDefinition {
     // Verwendung: --moco:agentParamsFilePath "D:\...\agent_params.csv"
     public String agentParamsFilePath = "";
     
+    // === Parameters for VERTICAL allocation ===
+    // Gewichtungsfaktoren für S = W1*Income + W2*PT + W3*Veh + W4*Household
+    public double verticalWeightIncome    = 1.0;
+    public double verticalWeightPt        = 1.0;
+    public double verticalWeightVehicle   = 1.0;
+    public double verticalWeightHousehold = 1.0;
+
     // === Parameters for Trip Dropping (Elastic Demand) ===
     // Enable/disable trip dropping strategy (RemoveExpensiveTrips)
     // When enabled, agents with negative coin balance may drop discretionary trips

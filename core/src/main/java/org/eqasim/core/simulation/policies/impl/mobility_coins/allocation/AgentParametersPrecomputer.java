@@ -676,11 +676,11 @@ public class AgentParametersPrecomputer {
         logger.info("Schreibe AgentParams nach {} ...", outputPath);
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputPath))) {
+            String header = CSV_HEADER;
             if (avgPtTravelTimeRoundedS > 0) {
-                writer.write("# avg_pt_travel_time_rounded_s=" + avgPtTravelTimeRoundedS);
-                writer.newLine();
+                header += ";avg_pt_travel_time_rounded_s=" + avgPtTravelTimeRoundedS;
             }
-            writer.write(CSV_HEADER);
+            writer.write(header);
             writer.newLine();
 
             List<AgentParams> sorted = results.values().stream()
@@ -711,8 +711,7 @@ public class AgentParametersPrecomputer {
         Map<String, AgentParams> result = new LinkedHashMap<>();
 
         try (BufferedReader reader = new BufferedReader(new FileReader(csvPath))) {
-            // Kommentarzeilen (# avg_pt_travel_time_rounded_s=...) überspringen,
-            // erste Nicht-Kommentarzeile ist der Header
+            // Zeile 1 ist der Header; etwaige Kommentarzeilen (#) werden übersprungen
             String header = null;
             String line;
             while ((line = reader.readLine()) != null) {

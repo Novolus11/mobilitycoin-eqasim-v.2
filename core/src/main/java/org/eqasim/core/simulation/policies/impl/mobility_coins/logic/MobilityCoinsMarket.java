@@ -16,6 +16,7 @@ import org.matsim.core.router.TripStructureUtils;
 import org.matsim.core.router.TripStructureUtils.Trip;
 import org.matsim.api.core.v01.Id;
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -381,7 +382,23 @@ public class MobilityCoinsMarket implements IterationEndsListener {
                 return new SuffiAllocationCalculator(transitSchedule);
 
             case VERTICAL:
-                return new VerticalAllocationCalculator();
+                if (parameters.agentParamsFilePath == null || parameters.agentParamsFilePath.isBlank()) {
+                    throw new IllegalStateException(
+                            "VERTICAL allocation benötigt --moco:agentParamsFilePath (agent_params.csv).");
+                }
+                try {
+                    Map<String, AgentParametersPrecomputer.AgentParams> verticalAgentParams =
+                            AgentParametersPrecomputer.readResults(parameters.agentParamsFilePath);
+                    return new VerticalAllocationCalculator(
+                            verticalAgentParams,
+                            parameters.verticalWeightIncome,
+                            parameters.verticalWeightPt,
+                            parameters.verticalWeightVehicle,
+                            parameters.verticalWeightHousehold);
+                } catch (IOException e) {
+                    throw new RuntimeException(
+                            "VERTICAL: Fehler beim Lesen von " + parameters.agentParamsFilePath, e);
+                }
 
             case SE_MN:
                 return new SeMnAllocationCalculator();

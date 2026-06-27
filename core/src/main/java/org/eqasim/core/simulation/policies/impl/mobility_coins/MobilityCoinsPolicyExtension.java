@@ -80,6 +80,19 @@ public class MobilityCoinsPolicyExtension extends AbstractEqasimExtension {
 	MobilityCoinsMarket provideMobilityCoinsMarket(MobilityCoinsParameters parameters,
 			MobilityCoinsCalculator calculator, Population population, MobilityCoinsWriter writer,
 			MobilityCoinsWalletWriter walletWriter, TransitSchedule transitSchedule) {
+		// Wenn agentParamsFilePath nicht explizit gesetzt wurde, automatisch im Szenario-Ordner suchen
+		if (parameters.agentParamsFilePath == null || parameters.agentParamsFilePath.isBlank()) {
+			try {
+				File configDir = new File(getConfig().getContext().toURI()).getParentFile();
+				File autoPath = new File(configDir, "agent_params.csv");
+				if (autoPath.exists()) {
+					parameters.agentParamsFilePath = autoPath.getAbsolutePath();
+					logger.info("agentParamsFilePath automatisch ermittelt: {}", parameters.agentParamsFilePath);
+				}
+			} catch (Exception e) {
+				// kein Auto-Detect möglich – agentParamsFilePath bleibt leer
+			}
+		}
 		return new MobilityCoinsMarket(parameters, calculator, population, writer, walletWriter, transitSchedule);
 	}
 
