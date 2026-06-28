@@ -159,6 +159,13 @@ public class AgentParametersPrecomputer {
      */
     private ZoneResolver zoneResolver = null;
 
+    /**
+     * Vorberechnete Baseline-Reisedaten je Person: pid → [distanceM, travelTimeS].
+     * Befüllt durch {@link #readPerPersonTravel} aus eqasim_trips_moco.csv.
+     * Leere Map (nicht null) wenn kein Baseline-Lauf verfügbar.
+     */
+    private Map<String, double[]> perPersonTravel = new HashMap<>();
+
     /** Für die Verwendung innerhalb der Simulation (Objekte bereits geladen). */
     public AgentParametersPrecomputer(TransitSchedule transitSchedule, Population population) {
         this.population           = population;
@@ -515,13 +522,18 @@ public class AgentParametersPrecomputer {
             ptAverageRaptor = (int) Math.round((double) rSum / rCnt);
         }
 
+        double[] travelData    = perPersonTravel.getOrDefault(personId, new double[2]);
+        double travelDistanceM = travelData[0];
+        double travelTimeS     = travelData[1];
+
         return new AgentParams(
                 personId, householdId, age, employed, homeoffice, education,
                 hasDrivingLicense, hasPtSubscription, carAvailability, bicycleAvailability,
                 income, highIncome, householdSize,
                 ptHome, ptWork, ptEducation, ptAverage,
                 ptHomeRaptor, ptWorkRaptor, ptEducationRaptor, ptAverageRaptor,
-                homeZone, workZone, educationZone
+                homeZone, workZone, educationZone,
+                travelDistanceM, travelTimeS
         );
     }
 
@@ -669,7 +681,8 @@ public class AgentParametersPrecomputer {
             "income;high_income;household_size;" +
             "pt_home;pt_work;pt_education;pt_average;" +
             "pt_home_raptor;pt_work_raptor;pt_education_raptor;pt_average_raptor;" +
-            "home_zone;work_zone;education_zone";
+            "home_zone;work_zone;education_zone;" +
+            "travel_distance;travel_time";
 
     public static void writeResults(Map<Id<Person>, AgentParams> results, String outputPath,
                                     long avgPtTravelTimeRoundedS) throws IOException {
@@ -774,6 +787,8 @@ public class AgentParametersPrecomputer {
         public final String  homeZone;
         public final String  workZone;
         public final String  educationZone;
+        public final double  travelDistanceM; // Summe Distanz (car+car_passenger+pt) aus Baseline in Metern
+        public final double  travelTimeS;     // Summe Reisezeit (car+car_passenger+pt) aus Baseline in Sekunden
 
         public AgentParams(
                 String personId, String householdId, int age,
@@ -783,7 +798,8 @@ public class AgentParametersPrecomputer {
                 String income, boolean highIncome, String householdSize,
                 int ptHome, Integer ptWork, Integer ptEducation, int ptAverage,
                 Integer ptHomeRaptor, Integer ptWorkRaptor, Integer ptEducationRaptor, Integer ptAverageRaptor,
-                String homeZone, String workZone, String educationZone) {
+                String homeZone, String workZone, String educationZone,
+                double travelDistanceM, double travelTimeS) {
             this.personId            = personId;
             this.householdId         = householdId;
             this.age                 = age;
@@ -808,6 +824,8 @@ public class AgentParametersPrecomputer {
             this.homeZone            = homeZone;
             this.workZone            = workZone;
             this.educationZone       = educationZone;
+            this.travelDistanceM     = travelDistanceM;
+            this.travelTimeS         = travelTimeS;
         }
 
         /** Serialisiert diese Zeile als Semikolon-getrennten CSV-String (kein Zeilenumbruch). */
@@ -836,7 +854,9 @@ public class AgentParametersPrecomputer {
                     ptAverageRaptor   != null ? String.valueOf(ptAverageRaptor)   : "NaN",
                     homeZone,
                     workZone,
-                    educationZone
+                    educationZone,
+                    String.valueOf((long) Math.round(travelDistanceM)),
+                    String.valueOf((long) Math.round(travelTimeS))
             );
         }
 
@@ -866,7 +886,9 @@ public class AgentParametersPrecomputer {
                     colIntNullable(parts, idx, "pt_average_raptor"),
                     col(parts, idx, "home_zone"),
                     col(parts, idx, "work_zone"),
-                    col(parts, idx, "education_zone")
+                    col(parts, idx, "education_zone"),
+                    colDouble(parts, idx, "travel_distance"),
+                    colDouble(parts, idx, "travel_time")
             );
         }
 
@@ -889,6 +911,13 @@ public class AgentParametersPrecomputer {
 
         private static boolean colBool(String[] parts, Map<String, Integer> idx, String name) {
             return Boolean.parseBoolean(col(parts, idx, name));
+        }
+
+        private static double colDouble(String[] parts, Map<String, Integer> idx, String name) {
+            String s = col(parts, idx, name);
+            if (s.isEmpty() || "NaN".equals(s)) return 0.0;
+            try { return Double.parseDouble(s); }
+            catch (NumberFormatException e) { return 0.0; }
         }
     }
 
@@ -935,6 +964,66 @@ public class AgentParametersPrecomputer {
 
         if (count == 0) return 0.0;
         return sum / count;
+    }
+
+    /**
+     * Liest eine Baseline-Trips/Legs-CSV und aggregiert Distanz (m) und Reisezeit (s)
+     * je Person für die Modi car, car_passenger und pt.
+     * Spalten: person_id (oder agent_id), mode,
+     *          vehicle_distance|routed_distance|traveled_distance, travel_time.
+     * Fehlende Spalten werden mit Warnung ignoriert (Wert bleibt 0).
+     */
+    public static Map<String, double[]> readPerPersonTravel(String csvPath) throws IOException {
+        Map<String, double[]> result = new HashMap<>();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(csvPath))) {
+            String header = reader.readLine();
+            if (header == null) return result;
+
+            String[] cols = header.split(";", -1);
+            int personIdIdx = -1, modeIdx = -1, distIdx = -1, timeIdx = -1;
+            for (int i = 0; i < cols.length; i++) {
+                switch (cols[i].trim()) {
+                    case "person_id":
+                    case "agent_id":           personIdIdx = i; break;
+                    case "mode":               modeIdx     = i; break;
+                    case "vehicle_distance":
+                    case "routed_distance":
+                    case "traveled_distance":  distIdx     = i; break;
+                    case "travel_time":        timeIdx     = i; break;
+                }
+            }
+
+            if (personIdIdx < 0 || modeIdx < 0) {
+                logger.warn("readPerPersonTravel: Spalten 'person_id'/'mode' nicht in {} – travel_distance/travel_time=0.", csvPath);
+                return result;
+            }
+            if (distIdx < 0) logger.warn("readPerPersonTravel: Keine Distanz-Spalte gefunden – travel_distance=0.");
+            if (timeIdx < 0) logger.warn("readPerPersonTravel: Spalte 'travel_time' nicht gefunden – travel_time=0.");
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+                String[] parts = line.split(";", -1);
+                if (parts.length <= Math.max(personIdIdx, modeIdx)) continue;
+                String mode = parts[modeIdx].trim();
+                if (!"car".equals(mode) && !"car_passenger".equals(mode) && !"pt".equals(mode)) continue;
+
+                String pid = parts[personIdIdx].trim();
+                double[] vals = result.computeIfAbsent(pid, k -> new double[2]);
+                if (distIdx >= 0 && distIdx < parts.length) {
+                    try { vals[0] += Double.parseDouble(parts[distIdx].trim()); }
+                    catch (NumberFormatException ignored) {}
+                }
+                if (timeIdx >= 0 && timeIdx < parts.length) {
+                    try { vals[1] += Double.parseDouble(parts[timeIdx].trim()); }
+                    catch (NumberFormatException ignored) {}
+                }
+            }
+        }
+
+        logger.info("readPerPersonTravel: {} Agenten mit Baseline-Reisedaten aus {}.", result.size(), csvPath);
+        return result;
     }
 
     // -------------------------------------------------------------------------
@@ -1080,6 +1169,12 @@ public class AgentParametersPrecomputer {
             logger.info("Baseline-Trips-CSV gefunden: {}", tripsFile.getAbsolutePath());
             precomputer.avgPtTravelTimeSeconds        = computeAvgPtTravelTime(tripsFile.getAbsolutePath());
             precomputer.avgPtTravelTimeRoundedSeconds = Math.round(precomputer.avgPtTravelTimeSeconds);
+
+            // Per-Person-Reisedaten (Distanz + Zeit für car/car_passenger/pt) aus derselben Datei
+            precomputer.perPersonTravel = readPerPersonTravel(tripsFile.getAbsolutePath());
+            if (precomputer.perPersonTravel.isEmpty()) {
+                logger.warn("Keine per-Person-Reisedaten gefunden – travel_distance/travel_time=0 für alle Agenten.");
+            }
 
             // Bavaria-Zonen aus Python-generierter WKT-CSV laden
             precomputer.zoneResolver = ZoneResolver.create(zonesSetupDir.getAbsolutePath());

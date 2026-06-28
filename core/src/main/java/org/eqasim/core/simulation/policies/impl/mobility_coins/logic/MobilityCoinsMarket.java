@@ -401,16 +401,64 @@ public class MobilityCoinsMarket implements IterationEndsListener {
                 }
 
             case SE_MN:
-                return new SeMnAllocationCalculator();
+                if (parameters.agentParamsFilePath == null || parameters.agentParamsFilePath.isBlank()) {
+                    throw new IllegalStateException(
+                            "SE_MN allocation benötigt --moco:agentParamsFilePath (agent_params.csv).");
+                }
+                try {
+                    Map<String, AgentParametersPrecomputer.AgentParams> seMnAgentParams =
+                            AgentParametersPrecomputer.readResults(parameters.agentParamsFilePath);
+                    return new SeMnAllocationCalculator(
+                            seMnAgentParams,
+                            parameters.seMnWeightZoneHome,
+                            parameters.seMnWeightZoneWork,
+                            parameters.seMnWeightZoneEducation,
+                            parameters.seMnWeightPt,
+                            parameters.seMnWeightDistance,
+                            parameters.seMnWeightTime);
+                } catch (IOException e) {
+                    throw new RuntimeException(
+                            "SE_MN: Fehler beim Lesen von " + parameters.agentParamsFilePath, e);
+                }
 
             case UTIL:
                 return new UtilAllocationCalculator();
 
             case HE_SOCIO:
-                return new HeSocioAllocationCalculator();
+                if (parameters.agentParamsFilePath == null || parameters.agentParamsFilePath.isBlank()) {
+                    throw new IllegalStateException(
+                            "HE_SOCIO allocation benötigt --moco:agentParamsFilePath (agent_params.csv).");
+                }
+                try {
+                    Map<String, AgentParametersPrecomputer.AgentParams> heSocioAgentParams =
+                            AgentParametersPrecomputer.readResults(parameters.agentParamsFilePath);
+                    return new HeSocioAllocationCalculator(
+                            heSocioAgentParams,
+                            parameters.heSocioWeightIncome,
+                            parameters.heSocioWeightHome,
+                            parameters.heSocioWeightHousehold);
+                } catch (IOException e) {
+                    throw new RuntimeException(
+                            "HE_SOCIO: Fehler beim Lesen von " + parameters.agentParamsFilePath, e);
+                }
 
             case HE_LS:
-                return new HeLsAllocationCalculator();
+                if (parameters.agentParamsFilePath == null || parameters.agentParamsFilePath.isBlank()) {
+                    throw new IllegalStateException(
+                            "HE_LS allocation benötigt --moco:agentParamsFilePath (agent_params.csv).");
+                }
+                try {
+                    Map<String, AgentParametersPrecomputer.AgentParams> heLsAgentParams =
+                            AgentParametersPrecomputer.readResults(parameters.agentParamsFilePath);
+                    return new HeLsAllocationCalculator(
+                            heLsAgentParams,
+                            parameters.heLsWeightEmployment,
+                            parameters.heLsWeightAge,
+                            parameters.heLsWeightDistance);
+                } catch (IOException e) {
+                    throw new RuntimeException(
+                            "HE_LS: Fehler beim Lesen von " + parameters.agentParamsFilePath, e);
+                }
 
             default:
                 logger.warn("Unknown allocation scheme: {}, using UNIFORM", parameters.allocationScheme);

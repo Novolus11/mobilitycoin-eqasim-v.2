@@ -152,6 +152,27 @@ public class MobilityCoinsParameters implements ParameterDefinition {
     public double verticalWeightVehicle   = 1.0;
     public double verticalWeightHousehold = 1.0;
 
+    // === Parameters for SE_MN allocation ===
+    // Gewichtungsfaktoren für S = W1*Zone_Home + W2*Zone_Work + W3*Zone_Education + W4*PT + W5*Travel_Distance + W6*Travel_Time
+    public double seMnWeightZoneHome      = 1.0;
+    public double seMnWeightZoneWork      = 1.0;
+    public double seMnWeightZoneEducation = 1.0;
+    public double seMnWeightPt            = 1.0;
+    public double seMnWeightDistance      = 1.0;
+    public double seMnWeightTime          = 1.0;
+
+    // === Parameters for HE_SOCIO allocation ===
+    // Gewichtungsfaktoren für S = W1*V_Income + W2*V_Home + W3*V_Household
+    public double heSocioWeightIncome    = 1.0;
+    public double heSocioWeightHome      = 1.0;
+    public double heSocioWeightHousehold = 1.0;
+
+    // === Parameters for HE_LS allocation ===
+    // Gewichtungsfaktoren für S = W1*V_Employment + W2*V_Age + W3*V_Travel_Distance
+    public double heLsWeightEmployment = 1.0;
+    public double heLsWeightAge        = 1.0;
+    public double heLsWeightDistance   = 1.0;
+
     // === Parameters for Trip Dropping (Elastic Demand) ===
     // Enable/disable trip dropping strategy (RemoveExpensiveTrips)
     // When enabled, agents with negative coin balance may drop discretionary trips
