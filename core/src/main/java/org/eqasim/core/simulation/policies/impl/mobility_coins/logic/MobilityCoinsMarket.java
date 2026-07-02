@@ -379,7 +379,22 @@ public class MobilityCoinsMarket implements IterationEndsListener {
                 );
 
             case SUFFI:
-                return new SuffiAllocationCalculator(transitSchedule);
+                if (parameters.agentParamsFilePath == null || parameters.agentParamsFilePath.isBlank()) {
+                    throw new IllegalStateException(
+                            "SUFFI allocation benötigt --moco:agentParamsFilePath (agent_params.csv).");
+                }
+                try {
+                    Map<String, AgentParametersPrecomputer.AgentParams> suffiAgentParams =
+                            AgentParametersPrecomputer.readResults(parameters.agentParamsFilePath);
+                    return new SuffiAllocationCalculator(
+                            suffiAgentParams,
+                            parameters.suffiWeightPt,
+                            parameters.suffiWeightVehicle,
+                            parameters.suffiWeightIncome);
+                } catch (IOException e) {
+                    throw new RuntimeException(
+                            "SUFFI: Fehler beim Lesen von " + parameters.agentParamsFilePath, e);
+                }
 
             case VERTICAL:
                 if (parameters.agentParamsFilePath == null || parameters.agentParamsFilePath.isBlank()) {

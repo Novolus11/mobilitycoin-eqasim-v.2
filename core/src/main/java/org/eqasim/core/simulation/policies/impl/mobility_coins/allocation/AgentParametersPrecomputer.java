@@ -465,16 +465,20 @@ public class AgentParametersPrecomputer {
             }
         }
 
-        // employed: Person hat Arbeitsaktivitäten im Plan
-        boolean employed  = hasWorkActivity;
+        // employed: direkt aus Personenattribut (Bavaria-Population hat "employed" als Boolean-Attribut).
+        // Fallback auf Plan-basierte Erkennung wenn Attribut fehlt.
+        Object employedObj = person.getAttributes().getAttribute("employed");
+        boolean employed = (employedObj != null)
+                ? Boolean.parseBoolean(employedObj.toString())
+                : hasWorkActivity;
 
         // education: Person hat Bildungsaktivitäten im Plan
         boolean education = hasEducationActivity;
 
         // homeoffice-Logik:
         //   employed=false → "NaN" (nicht erwerbstätig, Konzept nicht anwendbar)
-        //   employed=true, keine Arbeitskoordinaten vorhanden → "true"  (Arbeit findet zuhause statt)
-        //   employed=true, Arbeitskoordinaten vorhanden       → "false"
+        //   employed=true, keine Arbeitskoordinaten im Plan → "true"  (Arbeit findet zuhause statt)
+        //   employed=true, Arbeitskoordinaten vorhanden     → "false"
         String homeoffice;
         if (!employed) {
             homeoffice = "NaN";

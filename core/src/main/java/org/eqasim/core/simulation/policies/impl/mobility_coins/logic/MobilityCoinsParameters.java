@@ -173,6 +173,13 @@ public class MobilityCoinsParameters implements ParameterDefinition {
     public double heLsWeightAge        = 1.0;
     public double heLsWeightDistance   = 1.0;
 
+    // === Parameters for SUFFI allocation ===
+    // Gewichtungsfaktoren für S = base + W1*ptNeed + W2*carNeed + W3*incomeNeed
+    // base = 0.30 * (W1 + W2 + W3)
+    public double suffiWeightPt      = 1.0;
+    public double suffiWeightVehicle = 1.0;
+    public double suffiWeightIncome  = 1.0;
+
     // === Parameters for Trip Dropping (Elastic Demand) ===
     // Enable/disable trip dropping strategy (RemoveExpensiveTrips)
     // When enabled, agents with negative coin balance may drop discretionary trips
